@@ -9,7 +9,7 @@ using ExileCore.Shared;
 using SharpDX;
 using Vector2 = System.Numerics.Vector2;
 using RectangleF = SharpDX.RectangleF;
-using System.Linq; 
+using System.Linq;
 using System.Collections.Generic;
 
 namespace LevelHelper
@@ -28,19 +28,19 @@ namespace LevelHelper
             private double GetPercentage(uint finalXp)
             {
                 if (Level < 1 || Level >= ExpTable.Length) return 0;
-            
+
                 uint totalXpForLevel = ExpTable[Level] - ExpTable[Level - 1];
                 if (totalXpForLevel == 0) return 0;
 
                 uint gainedXp = finalXp - StartXp;
                 return (double)gainedXp / totalXpForLevel * 100;
             }
-            
+
             public double GetLivePercentageGain(uint currentPlayerXp)
             {
                 return GetPercentage(currentPlayerXp);
             }
-            
+
             public double FinalPercentageGain => EndXp > 0 ? GetPercentage(EndXp) : 0;
             public TimeSpan FinalRunTime => EndTime > StartTime ? EndTime - StartTime : TimeSpan.Zero;
             public TimeSpan GetLiveRunTime() => DateTime.Now - StartTime;
@@ -71,13 +71,13 @@ namespace LevelHelper
             2876116901, 3111280300, 3364828162, 3638186694, 3932818530,
             4250334444
         };
-        
+
         private readonly List<MapRun> _mapHistory = new List<MapRun>();
         private uint _activeMapHash;
         private int _persistentDeathCounter;
         private bool _isPaused;
         private DateTime _pauseTimeStart;
-        
+
         private DateTime sessionStart;
         private uint sessionStartXp, lastXpAmount;
         private double xpPerSecond, areasToLevelUp;
@@ -88,7 +88,7 @@ namespace LevelHelper
         {
             _activeMapHash = 0;
             _persistentDeathCounter = 0;
-            _isPaused = false; 
+            _isPaused = false;
             ResetSessionTracking();
 
             return true;
@@ -117,8 +117,8 @@ namespace LevelHelper
                     _mapHistory.RemoveAt(0);
                 }
 
-                ResetSessionTracking(); 
-                
+                ResetSessionTracking();
+
                 _activeMapHash = area.Hash;
                 _persistentDeathCounter = 0;
                 _isPaused = false;
@@ -128,7 +128,7 @@ namespace LevelHelper
                 var pauseDuration = DateTime.Now - _pauseTimeStart;
                 sessionStart = sessionStart.Add(pauseDuration);
                 lastXpGainTime = lastXpGainTime.Add(pauseDuration);
-                
+
                 var currentRun = _mapHistory.LastOrDefault();
                 if (currentRun != null)
                 {
@@ -152,7 +152,7 @@ namespace LevelHelper
                 lastRun.EndXp = player.XP;
                 lastRun.EndTime = DateTime.Now;
             }
-            
+
             var completedRuns = _mapHistory.Where(r => r.EndXp > 0 && (r.EndXp - r.StartXp > 0)).ToList();
             if (completedRuns.Any())
             {
@@ -171,18 +171,18 @@ namespace LevelHelper
             sessionStart = DateTime.Now;
             xpPerSecond = 0;
             lastXpGainTime = sessionStart;
-            
+
             if (player != null)
             {
                 lastXpAmount = sessionStartXp = player.XP;
                 lastLevel = player.Level;
             }
         }
-        
+
         private double GetExpPct(int level, uint exp)
         {
             if (level >= MAX_LEVEL || level < 1) return 0.0;
-            
+
             if (level > lastLevel)
             {
                 ResetSessionTracking();
@@ -191,7 +191,7 @@ namespace LevelHelper
             var levelStart = ExpTable[level - 1];
             return (exp - levelStart) / (double)(ExpTable[level] - levelStart) * 100;
         }
-        
+
         private string GetTTL(uint currentXp, int level)
         {
             if (level < 1) return DEFAULT_TIME_DISPLAY;
@@ -204,7 +204,7 @@ namespace LevelHelper
                 ResetSessionTracking();
                 return DEFAULT_TIME_DISPLAY;
             }
-            
+
             if (currentXp > lastXpAmount)
             {
                 lastXpGainTime = now;
@@ -214,7 +214,7 @@ namespace LevelHelper
                 ResetSessionTracking();
                 return DEFAULT_TIME_DISPLAY;
             }
-            
+
             lastXpAmount = currentXp;
 
             if (sessionStart == default || sessionStartXp == 0)
@@ -247,15 +247,15 @@ namespace LevelHelper
         public override void Render()
         {
             if (!Settings.Enable) return;
-            
+
             var player = GameController.Player?.GetComponent<Player>();
             if (player == null || GameController.IsLoading) return;
-            
+
             if (GameController.Game.IngameState.IngameUi.GameUI?.GetChildAtIndex(11) is not Element expBarElement) return;
             var expBarRect = expBarElement.GetClientRect();
-            
+
             DrawBarAndBackground(expBarRect, player);
-            
+
             if (_isPaused)
             {
                 DrawTextElements(expBarRect, null, 0, null, true);
@@ -266,7 +266,7 @@ namespace LevelHelper
                 var ttl = GetTTL(player.XP, player.Level);
                 DrawTextElements(expBarRect, player, pct, ttl, false);
             }
-            
+
             if (expBarRect.Contains(Input.MousePosition))
             {
                 DrawHoverPanel(expBarRect, player);
@@ -276,37 +276,37 @@ namespace LevelHelper
         private void DrawBarAndBackground(RectangleF expBarRect, Player player)
         {
             if (!Settings.ShowXPBar) return;
-            
+
             var frameWidth = expBarRect.Width;
             var frameHeight = 16;
             var frameX = expBarRect.X + (expBarRect.Width - frameWidth) / 2 + Settings.PositionX;
-            var frameY = expBarRect.Center.Y - frameHeight / 2f + Settings.PositionY;
+            var frameY = expBarRect.Center.Y - frameHeight / 2f + Settings.PositionY - 2f;
 
             var framePosition = new Vector2(frameX, frameY);
             var barHeight = frameHeight - 2;
             var barPosition = new Vector2(framePosition.X + 1, framePosition.Y + 1);
             var adjustedWidth = frameWidth - 2;
-            
+
             var outerColor = (DateTime.Now - lastDeathTime).TotalMilliseconds < DEATH_FLASH_DURATION_MS && !_isPaused
-                ? Settings.DeathFlashColor 
+                ? Settings.DeathFlashColor
                 : Settings.OuterBarColor;
 
             Graphics.DrawFrame(new RectangleF(framePosition.X, framePosition.Y, frameWidth, frameHeight), outerColor, 1);
-            
+
             var currentLevel = player.Level;
             if (currentLevel < 1 || currentLevel >= MAX_LEVEL)
             {
                 Graphics.DrawBox(new RectangleF(barPosition.X, barPosition.Y, adjustedWidth, barHeight), Settings.BackgroundColor);
                 return;
             }
-            
+
             var initialXPWidth = adjustedWidth * ((sessionStartXp - ExpTable[currentLevel - 1]) / (float)(ExpTable[currentLevel] - ExpTable[currentLevel - 1]));
             Graphics.DrawBox(new RectangleF(barPosition.X, barPosition.Y, initialXPWidth, barHeight), Settings.BarColor);
-            
+
             var newXPWidth = adjustedWidth * ((player.XP - sessionStartXp) / (float)(ExpTable[currentLevel] - ExpTable[currentLevel - 1]));
             var newXPPosition = new Vector2(barPosition.X + initialXPWidth, barPosition.Y);
             Graphics.DrawBox(new RectangleF(newXPPosition.X, newXPPosition.Y, newXPWidth, barHeight), Settings.NewXPBarColor);
-            
+
             var remainingWidth = adjustedWidth - initialXPWidth - newXPWidth;
             var remainingPosition = new Vector2(newXPPosition.X + newXPWidth, barPosition.Y);
             Graphics.DrawBox(new RectangleF(remainingPosition.X, remainingPosition.Y, remainingWidth, barHeight), Settings.BackgroundColor);
@@ -319,7 +319,7 @@ namespace LevelHelper
                 var frameWidth = expBarRect.Width;
                 var frameHeight = 16;
                 var frameX = expBarRect.X + (expBarRect.Width - frameWidth) / 2 + Settings.PositionX;
-                var frameY = expBarRect.Center.Y - frameHeight / 2f + Settings.PositionY;
+                var frameY = expBarRect.Center.Y - frameHeight / 2f + Settings.PositionY - 5f;
 
                 if (isPaused)
                 {
@@ -327,7 +327,7 @@ namespace LevelHelper
                     var pausedTextSize = Graphics.MeasureText(pausedText);
                     var textPosition = new Vector2(
                         frameX + frameWidth / 2f - pausedTextSize.X / 2f,
-                        frameY + frameHeight / 2f - pausedTextSize.Y / 2f
+                        frameY + frameHeight / 2f - pausedTextSize.Y / 2f + 2f
                     );
                     Graphics.DrawText(pausedText, textPosition, Settings.TextColor);
                 }
@@ -335,7 +335,7 @@ namespace LevelHelper
                 {
                     var xpText = $"{player.Level} ({Math.Round(pct, Settings.DecimalPlaces.Value)}%)";
                     var xpTextSize = Graphics.MeasureText(xpText);
-                    var xpTextY = frameY + (frameHeight / 2f) - (xpTextSize.Y / 2f);
+                    var xpTextY = frameY + (frameHeight / 2f) - (xpTextSize.Y / 2f) + 2f;
                     Graphics.DrawText(xpText, new Vector2(frameX + 3, xpTextY), Settings.TextColor);
 
                     if (Settings.DisplayMode == "Minimal") return;
@@ -349,9 +349,9 @@ namespace LevelHelper
                             additionalText += $" - Areas: {Math.Ceiling(areasToLevelUp)} - Deaths: {_persistentDeathCounter}";
                         }
                     }
-                
+
                     var additionalTextSize = Graphics.MeasureText(additionalText);
-                    var additionalTextY = frameY + (frameHeight / 2f) - (additionalTextSize.Y / 2f);
+                    var additionalTextY = frameY + (frameHeight / 2f) - (additionalTextSize.Y / 2f) + 2f;
                     Graphics.DrawText(additionalText, new Vector2(frameX + frameWidth - additionalTextSize.X - 3, additionalTextY), Settings.TextColor);
                 }
             }
@@ -372,9 +372,9 @@ namespace LevelHelper
             var panelBg = new SharpDX.Color(0, 0, 0, 220);
             Graphics.DrawBox(new RectangleF(panelX, panelY, panelWidth, panelHeight), panelBg);
             Graphics.DrawFrame(new RectangleF(panelX, panelY, panelWidth, panelHeight), SharpDX.Color.White, 1);
-            
+
             var textY = panelY + panelPadding;
-            
+
             for (int i = 0; i < _mapHistory.Count; i++)
             {
                 var run = _mapHistory[i];
@@ -385,16 +385,16 @@ namespace LevelHelper
                 var formattedTime = runTime.ToString(@"mm\:ss");
 
                 var mapText = $"{i + 1}. {run.AreaName}: +{pctGain:F2}% - {formattedTime} Runtime";
-                
+
                 Graphics.DrawText(mapText, new Vector2(panelX + 5, textY), Settings.TextColor);
                 textY += lineHeight;
             }
-            
+
             textY += panelPadding;
             var graphRect = new RectangleF(panelX + panelPadding, textY, panelWidth - (panelPadding * 2), graphHeight);
             DrawHistoryGraph(graphRect, _mapHistory);
         }
-        
+
         private void DrawHistoryGraph(RectangleF bounds, List<MapRun> history)
         {
             var dataPoints = history.Where(r => r.EndXp > 0).Select(r => r.FinalPercentageGain).ToList();
@@ -403,9 +403,9 @@ namespace LevelHelper
             var maxValue = dataPoints.Max();
             var minValue = dataPoints.Count > 1 ? dataPoints.Min() : 0;
             var valueRange = maxValue - minValue;
-            
+
             Graphics.DrawBox(bounds, new SharpDX.Color(255, 255, 255, 10));
-            
+
             var totalBarWidth = bounds.Width / 5;
             var barWidth = totalBarWidth * 0.8f;
             var barSpacing = totalBarWidth * 0.2f;
@@ -415,7 +415,7 @@ namespace LevelHelper
                 var dataValue = dataPoints[i];
                 var percentage = valueRange == 0 ? 1.0 : (dataValue - minValue) / valueRange;
                 var barHeight = (float)percentage * bounds.Height;
-                
+
                 var barX = bounds.X + (i * totalBarWidth) + (barSpacing / 2);
                 var barY = bounds.Bottom - barHeight;
 
@@ -429,7 +429,7 @@ namespace LevelHelper
             if (min >= max) return SharpDX.Color.Yellow;
 
             var percentage = (value - min) / (max - min);
-            
+
             byte r, g;
             if (percentage < 0.5)
             {
