@@ -32,7 +32,7 @@ namespace LevelHelper
                 uint totalXpForLevel = ExpTable[Level] - ExpTable[Level - 1];
                 if (totalXpForLevel == 0) return 0;
 
-                uint gainedXp = finalXp - StartXp;
+                long gainedXp = (long)finalXp - StartXp;
                 return (double)gainedXp / totalXpForLevel * 100;
             }
 
@@ -363,8 +363,7 @@ namespace LevelHelper
 
             var lineHeight = 18f;
             var panelPadding = 5f;
-            var graphHeight = 40f;
-            var panelHeight = (lineHeight * _mapHistory.Count) + (panelPadding * 3) + graphHeight;
+            var panelHeight = (lineHeight * _mapHistory.Count) + (panelPadding * 2);
             var panelWidth = 400f;
             var panelX = barRect.Center.X - panelWidth / 2f;
             var panelY = barRect.Top - panelHeight - 5;
@@ -384,64 +383,12 @@ namespace LevelHelper
                 var runTime = isLive ? run.GetLiveRunTime() : run.FinalRunTime;
                 var formattedTime = runTime.ToString(@"mm\:ss");
 
-                var mapText = $"{i + 1}. {run.AreaName}: +{pctGain:F2}% - {formattedTime} Runtime";
+                var gainSign = pctGain >= 0 ? "+" : "";
+                var mapText = $"{i + 1}. {run.AreaName}: {gainSign}{pctGain:F2}% - {formattedTime} Runtime";
 
                 Graphics.DrawText(mapText, new Vector2(panelX + 5, textY), Settings.TextColor);
                 textY += lineHeight;
             }
-
-            textY += panelPadding;
-            var graphRect = new RectangleF(panelX + panelPadding, textY, panelWidth - (panelPadding * 2), graphHeight);
-            DrawHistoryGraph(graphRect, _mapHistory);
-        }
-
-        private void DrawHistoryGraph(RectangleF bounds, List<MapRun> history)
-        {
-            var dataPoints = history.Where(r => r.EndXp > 0).Select(r => r.FinalPercentageGain).ToList();
-            if (dataPoints.Count == 0) return;
-
-            var maxValue = dataPoints.Max();
-            var minValue = dataPoints.Count > 1 ? dataPoints.Min() : 0;
-            var valueRange = maxValue - minValue;
-
-            Graphics.DrawBox(bounds, new SharpDX.Color(255, 255, 255, 10));
-
-            var totalBarWidth = bounds.Width / 5;
-            var barWidth = totalBarWidth * 0.8f;
-            var barSpacing = totalBarWidth * 0.2f;
-
-            for (int i = 0; i < dataPoints.Count; i++)
-            {
-                var dataValue = dataPoints[i];
-                var percentage = valueRange == 0 ? 1.0 : (dataValue - minValue) / valueRange;
-                var barHeight = (float)percentage * bounds.Height;
-
-                var barX = bounds.X + (i * totalBarWidth) + (barSpacing / 2);
-                var barY = bounds.Bottom - barHeight;
-
-                var color = GetColorForValue(dataValue, minValue, maxValue);
-                Graphics.DrawBox(new RectangleF(barX, barY, barWidth, barHeight), color);
-            }
-        }
-
-        private SharpDX.Color GetColorForValue(double value, double min, double max)
-        {
-            if (min >= max) return SharpDX.Color.Yellow;
-
-            var percentage = (value - min) / (max - min);
-
-            byte r, g;
-            if (percentage < 0.5)
-            {
-                r = 255;
-                g = (byte)(255 * (percentage * 2));
-            }
-            else
-            {
-                r = (byte)(255 * (1 - (percentage - 0.5) * 2));
-                g = 255;
-            }
-            return new SharpDX.Color(r, g, (byte)0, (byte)220);
         }
     }
 }
