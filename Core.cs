@@ -48,9 +48,7 @@ namespace LevelHelper
 
         private const string DEFAULT_TIME_DISPLAY = "00:00:00";
         private const string MAX_TIME_DISPLAY = ">99:59:59";
-        private const int MIN_TIME_FOR_CALCULATION = 10;
         private const int MAX_LEVEL = 100;
-        private const int DEATH_FLASH_DURATION_MS = 1000;
 
         public static readonly uint[] ExpTable =
         {
@@ -77,6 +75,7 @@ namespace LevelHelper
         private int _persistentDeathCounter;
         private bool _isPaused;
         private DateTime _pauseTimeStart;
+        private Player _playerComponent;
 
         private DateTime sessionStart;
         private uint sessionStartXp, lastXpAmount;
@@ -91,6 +90,8 @@ namespace LevelHelper
             _isPaused = false;
             ResetSessionTracking();
 
+            Settings.ResetSessionButton.OnPressed += HandleResetSessionClick;
+
             return true;
         }
 
@@ -100,19 +101,21 @@ namespace LevelHelper
             var player = GameController.Player?.GetComponent<Player>();
             if (player == null) return;
 
+            _playerComponent = player;
+
             if (!isTownOrHideout && area.Hash != _activeMapHash)
             {
-                FinalizePreviousMapRun(player);
+                FinalizePreviousMapRun(_playerComponent);
 
                 var newRun = new MapRun
                 {
                     AreaName = area.Name,
-                    StartXp = player.XP,
-                    Level = player.Level,
+                    StartXp = _playerComponent.XP,
+                    Level = _playerComponent.Level,
                     StartTime = DateTime.Now
                 };
                 _mapHistory.Add(newRun);
-                if (_mapHistory.Count > 5)
+                if (_mapHistory.Count > Settings.MapHistoryLimit)
                 {
                     _mapHistory.RemoveAt(0);
                 }
@@ -167,16 +170,29 @@ namespace LevelHelper
 
         private void ResetSessionTracking()
         {
-            var player = GameController.Player?.GetComponent<Player>();
             sessionStart = DateTime.Now;
             xpPerSecond = 0;
             lastXpGainTime = sessionStart;
 
-            if (player != null)
+            if (_playerComponent != null)
             {
-                lastXpAmount = sessionStartXp = player.XP;
-                lastLevel = player.Level;
+                lastXpAmount = sessionStartXp = _playerComponent.XP;
+                lastLevel = _playerComponent.Level;
             }
+            else
+            {
+                lastXpAmount = sessionStartXp = 0;
+                lastLevel = 0;
+            }
+        }
+
+        private void HandleResetSessionClick()
+        {
+            ResetSessionTracking();
+            _mapHistory.Clear();
+            _activeMapHash = 0;
+            _persistentDeathCounter = 0;
+            _isPaused = false;
         }
 
         private double GetExpPct(int level, uint exp)
@@ -186,6 +202,7 @@ namespace LevelHelper
             if (level > lastLevel)
             {
                 ResetSessionTracking();
+                lastLevel = level;
             }
 
             var levelStart = ExpTable[level - 1];
@@ -201,7 +218,7 @@ namespace LevelHelper
             {
                 lastDeathTime = now;
                 _persistentDeathCounter++;
-                ResetSessionTracking();
+                xpPerSecond = 0;
                 return DEFAULT_TIME_DISPLAY;
             }
 
@@ -217,14 +234,8 @@ namespace LevelHelper
 
             lastXpAmount = currentXp;
 
-            if (sessionStart == default || sessionStartXp == 0)
-            {
-                ResetSessionTracking();
-                return DEFAULT_TIME_DISPLAY;
-            }
-
             var totalTime = (now - sessionStart).TotalSeconds;
-            if (totalTime < MIN_TIME_FOR_CALCULATION) return DEFAULT_TIME_DISPLAY;
+            if (totalTime < Settings.MinTimeForCalculation.Value) return DEFAULT_TIME_DISPLAY;
 
             var gained = (long)currentXp - sessionStartXp;
             if (gained > 0)
@@ -248,13 +259,13 @@ namespace LevelHelper
         {
             if (!Settings.Enable) return;
 
-            var player = GameController.Player?.GetComponent<Player>();
-            if (player == null || GameController.IsLoading) return;
+            _playerComponent = GameController.Player?.GetComponent<Player>();
+            if (_playerComponent == null || GameController.IsLoading) return;
 
             if (GameController.Game.IngameState.IngameUi.GameUI?.GetChildAtIndex(11) is not Element expBarElement) return;
             var expBarRect = expBarElement.GetClientRect();
 
-            DrawBarAndBackground(expBarRect, player);
+            DrawBarAndBackground(expBarRect, _playerComponent);
 
             if (_isPaused)
             {
@@ -262,14 +273,14 @@ namespace LevelHelper
             }
             else
             {
-                var pct = GetExpPct(player.Level, player.XP);
-                var ttl = GetTTL(player.XP, player.Level);
-                DrawTextElements(expBarRect, player, pct, ttl, false);
+                var pct = GetExpPct(_playerComponent.Level, _playerComponent.XP);
+                var ttl = GetTTL(_playerComponent.XP, _playerComponent.Level);
+                DrawTextElements(expBarRect, _playerComponent, pct, ttl, false);
             }
 
             if (expBarRect.Contains(Input.MousePosition))
             {
-                DrawHoverPanel(expBarRect, player);
+                DrawHoverPanel(expBarRect, _playerComponent);
             }
         }
 
@@ -287,7 +298,7 @@ namespace LevelHelper
             var barPosition = new Vector2(framePosition.X + 1, framePosition.Y + 1);
             var adjustedWidth = frameWidth - 2;
 
-            var outerColor = (DateTime.Now - lastDeathTime).TotalMilliseconds < DEATH_FLASH_DURATION_MS && !_isPaused
+            var outerColor = (DateTime.Now - lastDeathTime).TotalMilliseconds < Settings.DeathFlashDurationMs.Value && !_isPaused
                 ? Settings.DeathFlashColor
                 : Settings.OuterBarColor;
 
@@ -300,16 +311,35 @@ namespace LevelHelper
                 return;
             }
 
-            var initialXPWidth = adjustedWidth * ((sessionStartXp - ExpTable[currentLevel - 1]) / (float)(ExpTable[currentLevel] - ExpTable[currentLevel - 1]));
-            Graphics.DrawBox(new RectangleF(barPosition.X, barPosition.Y, initialXPWidth, barHeight), Settings.BarColor);
+            uint xpForCurrentLevelStart = ExpTable[currentLevel - 1];
+            uint xpForCurrentLevelEnd = ExpTable[currentLevel];
+            uint totalXpForCurrentLevel = xpForCurrentLevelEnd - xpForCurrentLevelStart;
 
-            var newXPWidth = adjustedWidth * ((player.XP - sessionStartXp) / (float)(ExpTable[currentLevel] - ExpTable[currentLevel - 1]));
-            var newXPPosition = new Vector2(barPosition.X + initialXPWidth, barPosition.Y);
-            Graphics.DrawBox(new RectangleF(newXPPosition.X, newXPPosition.Y, newXPWidth, barHeight), Settings.NewXPBarColor);
+            // Calculate total XP progress within the current level
+            float currentLevelProgress = (player.XP - xpForCurrentLevelStart) / (float)totalXpForCurrentLevel;
+            float currentLevelWidth = adjustedWidth * currentLevelProgress;
 
-            var remainingWidth = adjustedWidth - initialXPWidth - newXPWidth;
-            var remainingPosition = new Vector2(newXPPosition.X + newXPWidth, barPosition.Y);
-            Graphics.DrawBox(new RectangleF(remainingPosition.X, remainingPosition.Y, remainingWidth, barHeight), Settings.BackgroundColor);
+            // Calculate XP gained in current session within the current level
+            uint sessionXpInCurrentLevel = 0;
+            if (player.Level == lastLevel)
+            {
+                sessionXpInCurrentLevel = player.XP - sessionStartXp;
+            }
+            else if (player.Level > lastLevel)
+            {
+                sessionXpInCurrentLevel = player.XP - xpForCurrentLevelStart;
+            }
+
+            float sessionProgressWidth = adjustedWidth * (sessionXpInCurrentLevel / (float)totalXpForCurrentLevel);
+
+            // Draw background for remaining XP in current level
+            Graphics.DrawBox(new RectangleF(barPosition.X, barPosition.Y, adjustedWidth, barHeight), Settings.BackgroundColor);
+
+            // Draw XP gained in current session (NewXPBarColor)
+            Graphics.DrawBox(new RectangleF(barPosition.X + currentLevelWidth - sessionProgressWidth, barPosition.Y, sessionProgressWidth, barHeight), Settings.NewXPBarColor);
+
+            // Draw total XP progress (BarColor) 
+            Graphics.DrawBox(new RectangleF(barPosition.X, barPosition.Y, currentLevelWidth - sessionProgressWidth, barHeight), Settings.BarColor);
         }
 
         private void DrawTextElements(RectangleF expBarRect, Player player, double pct, string ttl, bool isPaused)
@@ -333,6 +363,7 @@ namespace LevelHelper
                 }
                 else
                 {
+                    if (player == null) return; // Defensive check
                     var xpText = $"{player.Level} ({Math.Round(pct, Settings.DecimalPlaces.Value)}%)";
                     var xpTextSize = Graphics.MeasureText(xpText);
                     var xpTextY = frameY + (frameHeight / 2f) - (xpTextSize.Y / 2f) + 2f;

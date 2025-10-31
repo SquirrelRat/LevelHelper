@@ -27,6 +27,9 @@ namespace LevelHelper
 
         [Menu("Decimal Places")]
         public RangeNode<int> DecimalPlaces { get; set; } = new RangeNode<int>(2, 1, 4);
+
+        [Menu("Map History Limit", "Number of previous map runs to display in the hover panel.")]
+        public RangeNode<int> MapHistoryLimit { get; set; } = new RangeNode<int>(5, 1, 20);
         
         [Menu("X Offset")]
         public RangeNode<int> PositionX { get; set; } = new RangeNode<int>(0, -2000, 2000);
@@ -51,5 +54,14 @@ namespace LevelHelper
 
         [Menu("Death Flash Color")]
         public ColorNode DeathFlashColor { get; set; } = new ColorNode(new Color(210, 0, 0, 220));
+
+        [Menu("Min Time For Calculation (s)", "Minimum time in seconds before XP/hr calculations start.")]
+        public RangeNode<int> MinTimeForCalculation { get; set; } = new RangeNode<int>(10, 1, 60);
+
+        [Menu("Death Flash Duration (ms)", "Duration in milliseconds for the XP bar to flash red after a death.")]
+        public RangeNode<int> DeathFlashDurationMs { get; set; } = new RangeNode<int>(1000, 100, 5000);
+
+        [Menu("Reset Session", "Resets all session tracking data (XP, time, deaths).")]
+        public ButtonNode ResetSessionButton { get; set; } = new ButtonNode();
     }
 }
