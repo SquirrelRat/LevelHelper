@@ -80,7 +80,7 @@ namespace LevelHelper
         private DateTime sessionStart;
         private uint sessionStartXp, lastXpAmount;
         private double xpPerSecond, areasToLevelUp;
-        private DateTime lastXpGainTime, lastDeathTime;
+        private DateTime lastXpGainTime, lastDeathTime, _lastDeathProcessedTime;
         private int lastLevel;
 
         public override bool Initialise()
@@ -214,11 +214,12 @@ namespace LevelHelper
             if (level < 1) return DEFAULT_TIME_DISPLAY;
             var now = DateTime.Now;
 
-            if (currentXp < lastXpAmount)
+            if (currentXp < lastXpAmount && (now - _lastDeathProcessedTime).TotalMilliseconds > 5000)
             {
                 lastDeathTime = now;
                 _persistentDeathCounter++;
                 xpPerSecond = 0;
+                _lastDeathProcessedTime = now;
                 return DEFAULT_TIME_DISPLAY;
             }
 
